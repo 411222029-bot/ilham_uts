@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nusantara Flix - Dashboard</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body>
+    <div class="container mt-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="m-0">Nusantara Flix — Dashboard</h2>
+        <div>
+          <button id="btnRefresh" class="btn btn-sm btn-outline-secondary me-2">
+            Refresh
+          </button>
+          <button id="btnNew" class="btn btn-primary btn-sm">
+            Tambah Media
+          </button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-12">
+          <div class="table-responsive">
+            <table class="table table-striped table-bordered align-middle">
+              <thead class="table-dark text-center">
+                <tr>
+                  <th style="width: 80px">Id</th>
+                  <th>Judul</th>
+                  <th style="width: 140px">Tahun Rilis</th>
+                  <th style="width: 160px">Genre</th>
+                  <th style="width: 160px">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="mediaTableBody">
+                <tr>
+                  <td colspan="5" class="text-center text-muted">
+                    Memuat data...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form / Panel -->
+      <div class="card mt-4 d-none" id="formCard">
+        <div class="card-body">
+          <h5 id="formTitle">Tambah Media</h5>
+          <form id="mediaForm" class="row g-3">
+            <input type="hidden" id="id_media" />
+            <div class="col-md-6">
+              <label class="form-label">Judul</label>
+              <input id="judul" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Tahun Rilis</label>
+              <input
+                id="tahun_rilis"
+                type="number"
+                class="form-control"
+                required
+              />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Genre</label>
+              <input id="genre" class="form-control" required />
+            </div>
+
+            <div class="col-12 d-flex justify-content-end mt-2">
+              <button type="button" id="btnCancel" class="btn btn-link me-2">
+                Batal
+              </button>
+              <button type="submit" id="btnSave" class="btn btn-success">
+                Simpan
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div
+        id="toastContainer"
+        class="position-fixed bottom-0 end-0 p-3"
+        style="z-index: 1080"
+      ></div>
+    </div>
+
+    <script>
+      // Fallback sample data jika backend tidak tersedia
+      let dataMedia = [
+        {
+          id_media: 1,
+          judul: "Langit Merah",
+          tahun_rilis: 2023,
+          genre: "Drama",
+        },
+        {
+          id_media: 2,
+          judul: "Misteri Kota",
+          tahun_rilis: 2021,
+          genre: "Thriller",
+        },
+        {
+          id_media: 3,
+          judul: "Petualangan Si Kancil",
+          tahun_rilis: 2024,
+          genre: "Animasi",
+        },
+      ];
+
+      const apiBase = ""; // kosong = same origin, set to e.g. 'http://localhost:3000' jika diperlukan
+
+      // Elemen
+      const tbody = document.getElementById("mediaTableBody");
+      const formCard = document.getElementById("formCard");
+      const mediaForm = document.getElementById("mediaForm");
+      const formTitle = document.getElementById("formTitle");
+      const btnNew = document.getElementById("btnNew");
+      const btnRefresh = document.getElementById("btnRefresh");
+      const btnCancel = document.getElementById("btnCancel");
+
+      // Helpers
+      function showToast(message, type = "success") {
+        const id = "t" + Date.now();
+        const el = document.createElement("div");
+        el.className = `toast align-items-center text-bg-${type} border-0 show`;
+        el.setAttribute("role", "alert");
+        el.setAttribute("aria-live", "assertive");
+        el.setAttribute("aria-atomic", "true");
+        el.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
+        document.getElementById("toastContainer").appendChild(el);
+        setTimeout(() => el.remove(), 4000);
+      }
+
+      // Load from API or fallback
+      async function loadMedia() {
+        // Try fetch GET /media
+        try {
+          const res = await fetch(apiBase + "/media");
+          if (!res.ok) throw new Error("Fetch failed");
+          const json = await res.json();
+          if (Array.isArray(json)) {
+            dataMedia = json;
+          }
+        } catch (err) {
+          console.warn("Fetch GET /media gagal, menggunakan data lokal", err);
+        }
+        renderTable();
+      }
+
+      function renderTable() {
+        if (!dataMedia || dataMedia.length === 0) {
+          tbody.innerHTML =
+            '<tr><td colspan="5" class="text-center text-muted">Belum ada data.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = dataMedia
+          .map(
+            (item) => `
+          <tr>
+            <td class="text-center">${item.id_media}</td>
+            <td>${escapeHtml(item.judul)}</td>
+            <td class="text-center">${item.tahun_rilis}</td>
+            <td>${escapeHtml(item.genre)}</td>
+            <td class="text-center">
+              <button class="btn btn-sm btn-outline-primary me-1" onclick="openEdit(${
+                item.id_media
+              })">Edit</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete(${
+                item.id_media
+              })">Hapus</button>
+            </td>
+          </tr>
+        `
+          )
+          .join("");
+      }
+
+      // Sanitizer simple
+      function escapeHtml(text) {
+        if (text == null) return "";
+        return String(text).replace(/[&<>\"]/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+        });
+      }
+
+      // Open add form
+      function openAdd() {
+        formTitle.textContent = "Tambah Media";
+        formCard.classList.remove("d-none");
+        mediaForm.reset();
+        document.getElementById("id_media").value = "";
+      }
+
+      // Open edit form
+      function openEdit(id) {
+        const item = dataMedia.find((x) => Number(x.id_media) === Number(id));
+        if (!item) {
+          showToast("Data tidak ditemukan", "warning");
+          return;
+        }
+        formTitle.textContent = "Edit Media — ID " + item.id_media;
+        formCard.classList.remove("d-none");
+        document.getElementById("id_media").value = item.id_media;
+        document.getElementById("judul").value = item.judul;
+        document.getElementById("tahun_rilis").value = item.tahun_rilis;
+        document.getElementById("genre").value = item.genre;
+      }
+
+      // Confirm delete
+      function confirmDelete(id) {
+        if (!confirm("Hapus media dengan ID " + id + "?")) return;
+        deleteMedia(id);
+      }
+
+      // DELETE
+      async function deleteMedia(id) {
+        try {
+          const res = await fetch(apiBase + "/media/" + id, {
+            method: "DELETE",
+          });
+          if (res.ok) {
+            // remove from local
+            dataMedia = dataMedia.filter(
+              (x) => Number(x.id_media) !== Number(id)
+            );
+            renderTable();
+            showToast("Media berhasil dihapus", "success");
+            return;
+          }
+          // jika server tidak mendukung, fallback lakukan penghapusan lokal
+        } catch (err) {
+          console.warn("DELETE gagal, hapus lokal sebagai fallback", err);
+        }
+        dataMedia = dataMedia.filter((x) => Number(x.id_media) !== Number(id));
+        renderTable();
+        showToast("Media dihapus (lokal)", "success");
+      }
+
+      // Submit form -> POST atau PUT
+      mediaForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const id = document.getElementById("id_media").value;
+        const judul = document.getElementById("judul").value.trim();
+        const tahun = Number(document.getElementById("tahun_rilis").value);
+        const genre = document.getElementById("genre").value.trim();
+
+        if (!judul || !tahun || !genre) {
+          showToast("Semua field wajib diisi", "warning");
+          return;
+        }
+
+        const payload = { judul, tahun_rilis: tahun, genre };
+
+        if (id) {
+          // PUT
+          try {
+            const res = await fetch(apiBase + "/media/" + id, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (res.ok) {
+              // update local copy if present
+              const idx = dataMedia.findIndex(
+                (x) => Number(x.id_media) === Number(id)
+              );
+              if (idx > -1) {
+                dataMedia[idx] = { id_media: Number(id), ...payload };
+              }
+              renderTable();
+              showToast("Perubahan disimpan", "success");
+              formCard.classList.add("d-none");
+              return;
+            }
+          } catch (err) {
+            console.warn("PUT gagal, update lokal sebagai fallback", err);
+          }
+          // fallback lokal
+          const idx = dataMedia.findIndex(
+            (x) => Number(x.id_media) === Number(id)
+          );
+          if (idx > -1) {
+            dataMedia[idx] = { id_media: Number(id), ...payload };
+          }
+          renderTable();
+          showToast("Perubahan disimpan (lokal)", "success");
+          formCard.classList.add("d-none");
+        } else {
+          // POST
+          try {
+            const res = await fetch(apiBase + "/media", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (res.ok) {
+              const created = await res.json();
+              // jika server mengembalikan object created dengan id_media
+              if (created && created.id_media) {
+                dataMedia.push(created);
+              } else
+                dataMedia.push({
+                  id_media: dataMedia.length
+                    ? Math.max(...dataMedia.map((x) => x.id_media)) + 1
+                    : 1,
+                  ...payload,
+                });
+              renderTable();
+              showToast("Media ditambahkan", "success");
+              formCard.classList.add("d-none");
+              return;
+            }
+          } catch (err) {
+            console.warn("POST gagal, tambahkan lokal sebagai fallback", err);
+          }
+          // fallback lokal: buat id baru
+          const newId = dataMedia.length
+            ? Math.max(...dataMedia.map((x) => x.id_media)) + 1
+            : 1;
+          dataMedia.push({ id_media: newId, ...payload });
+          renderTable();
+          showToast("Media ditambahkan (lokal)", "success");
+          formCard.classList.add("d-none");
+        }
+      });
+
+      // Cancel
+      btnCancel.addEventListener("click", () =>
+        formCard.classList.add("d-none")
+      );
+      btnNew.addEventListener("click", openAdd);
+      btnRefresh.addEventListener("click", loadMedia);
+
+      // Expose functions for buttons inside generated HTML
+      window.openEdit = openEdit;
+      window.confirmDelete = confirmDelete;
+
+      // Init
+      document.addEventListener("DOMContentLoaded", loadMedia);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>
